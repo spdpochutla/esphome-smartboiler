@@ -3,12 +3,10 @@ import esphome.config_validation as cv
 from esphome.components import ble_client, sensor, select, binary_sensor, climate
 from esphome.const import CONF_ID,UNIT_CELSIUS, ICON_THERMOMETER, ICON_FLASH
 
-DEPENDENCIES = ['esp32', 'ble_client', 'mqtt', 'sensor', 'binary_sensor', 'select', 'climate']
+DEPENDENCIES = ['esp32', 'ble_client', 'sensor', 'binary_sensor', 'select', 'climate']
 
 AUTO_LOAD = []
 #MULTI_CONF = True
-
-CONF_TOPIC = 'topic_prefix'
 
 CONF_TEMP1 = 'temp1'
 CONF_TEMP2 = 'temp2'
@@ -28,7 +26,6 @@ SmartBoilerThermostat = smartboiler_controller_ns.class_('SmartBoilerThermostat'
 
 CONFIG_SCHEMA = cv.polling_component_schema('30s').extend({
     cv.GenerateID(): cv.declare_id(SmartBoiler),
-    cv.Optional(CONF_TOPIC, "smartboiler"): cv.string,
     cv.Optional(CONF_TEMP1): sensor.sensor_schema(unit_of_measurement=UNIT_CELSIUS, icon=ICON_THERMOMETER, accuracy_decimals=1).extend(),
     cv.Optional(CONF_TEMP2): sensor.sensor_schema(unit_of_measurement=UNIT_CELSIUS, icon=ICON_THERMOMETER, accuracy_decimals=1).extend(),
     cv.Optional(CONF_HDO_LOW_TARIFF): binary_sensor.binary_sensor_schema().extend(),
@@ -75,6 +72,3 @@ async def to_code(config):
         therm = cg.new_Pvariable(config[CONF_THERMOSTAT][CONF_ID])
         await climate.register_climate(therm, config[CONF_THERMOSTAT])
         cg.add(var.set_thermostat(therm))
-
-    cg.add(var.set_root_topic(config[CONF_TOPIC]))
-

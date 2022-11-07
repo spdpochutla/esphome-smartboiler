@@ -16,7 +16,7 @@ namespace sb {
 class SmartBoilerModeSelect;
 class SmartBoilerThermostat;
 
-class SmartBoiler : public PollingComponent, public esphome::ble_client::BLEClientNode, public esphome::mqtt::CustomMQTTDevice
+class SmartBoiler : public PollingComponent, public esphome::ble_client::BLEClientNode
 {
 public:
 	SmartBoiler();
@@ -27,7 +27,6 @@ public:
 	void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
 
-	void set_root_topic(const std::string &value);
 	void set_temp1(sensor::Sensor *s) { temperature_sensor_1_sensor_ = s; }
 	void set_temp2(sensor::Sensor *s) { temperature_sensor_2_sensor_ = s; }
 	void set_hdo_low_tariff(binary_sensor::BinarySensor *s) { hdo_low_tariff_sensor_ = s; }
@@ -46,7 +45,7 @@ protected:
 	void send_to_boiler(uint8_t* frame, size_t length);
 private:
 	bool online_ = false;
-	std::string root_topic_;
+
 	// Handle for outgoing requests
 	uint16_t char_handle_;
 	bool is_stopped_ = false;

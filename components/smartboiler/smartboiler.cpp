@@ -60,18 +60,7 @@ SmartBoiler::SmartBoiler()
 
 void SmartBoiler::setup()
 {
-	subscribe(root_topic_ + "set_temperature", &SmartBoiler::on_set_temperature);
-	subscribe(root_topic_ + "set_mode", &SmartBoiler::on_set_mode);
-	subscribe(root_topic_ + "set_hdo_enabled", &SmartBoiler::on_set_hdo_enabled);
-
-	publish(root_topic_ + "boiler_online", "0", 0, true);
-
-	esphome::mqtt::MQTTMessage lastWill = {
-		.topic = root_topic_ + "boiler_online",
-		.payload = "0",
-	};
-
-	esphome::mqtt::global_mqtt_client->set_last_will(std::move(lastWill));
+	ESP_LOGCONFIG(TAG, "Setting up SmartBoiler...");
 }
 
 void SmartBoiler::dump_config()
@@ -200,8 +189,6 @@ void SmartBoiler::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
 		{
 			ESP_LOGI(TAG, "[%s] Disconnected",
 						this->parent_->address_str().c_str());
-
-			publish(root_topic_ + "boiler_online", "0", 0, true);
 			online_ = false;
 			break;
 		}
@@ -307,14 +294,6 @@ void SmartBoiler::request_value(uint8_t value, uint8_t uid)
 	send_to_boiler(frame, sizeof(frame));
 }
 
-void SmartBoiler::set_root_topic(const std::string &value)
-{
-	root_topic_ = value;
-
-	if (!root_topic_.empty())
-		root_topic_ += "/";
-}
-
 void SmartBoiler::handle_incoming(const uint8_t *data, uint16_t length)
 {
 	// First two bytes contain a decimal value from SbcPacket as a string
@@ -324,7 +303,8 @@ void SmartBoiler::handle_incoming(const uint8_t *data, uint16_t length)
 	if (!online_)
 	{
 		online_ = true;
-		publish(root_topic_ + "boiler_online", "1", 0, true);
+		ESP_LOGI(TAG, "[%s] Connected (incoming data)",
+					this->parent_->address_str().c_str());
 	}
 
 	ESP_LOGI(TAG, "Received data from boiler: cmd=0x%x, %s, %d bytes", cmd, arg.c_str(), length - 2);
@@ -342,10 +322,9 @@ void SmartBoiler::handle_incoming(const uint8_t *data, uint16_t length)
 
 				if (secondSemicol != std::string::npos)
 				{
-					publish(root_topic_ + "fw_version", arg.substr(0, firstSemicol), 0, true);
-					publish(root_topic_ + "board_rev", arg.substr(firstSemicol+1, secondSemicol-firstSemicol-1), 0, true);
-					publish(root_topic_ + "serial", arg.substr(secondSemicol+1), 0, true);
-
+					ESP_LOGI(TAG, "Firmware version: %s", arg.substr(0, firstSemicol).c_str());
+					ESP_LOGI(TAG, "Board revision: %s", arg.substr(firstSemicol+1, secondSemicol - firstSemicol - 1).c_str());
+					ESP_LOGI(TAG, "Serial number: %s", arg.substr(secondSemicol+1).c_str());
 					break;
 				}
 			}
@@ -368,12 +347,14 @@ void SmartBoiler::handle_incoming(const uint8_t *data, uint16_t length)
 
 			if (mode >= 0 && mode < sizeof(modeStrings) / sizeof(modeStrings[0]))
 			{
-				publish(root_topic_ + "mode", modeStrings[mode], 0, true);
-
+				ESP_LOGI(TAG, "Boiler mode: %s", modeStrings[mode]);
 				is_stopped_ = mode == 0;
 
 				if (mode_select_)
+				{
+					ESP_LOGI(TAG, "Setting mode to %s", modeStrings[mode]);
 					mode_select_->publish_state(modeStrings[mode]);
+				}
 			}
 			else
 				ESP_LOGW(TAG, "Bad mode value from boiler: %d", mode);
@@ -393,7 +374,7 @@ void SmartBoiler::handle_incoming(const uint8_t *data, uint16_t length)
 			if (thermostat_)
 				thermostat_->publish_target_temp(*tempOpt);
 
-			publish(root_topic_ + "temperature", to_string(*tempOpt), 0, true);
+			ESP_LOGI(TAG, "Set temperature: %d", *tempOpt);
 			break;
 		}
 
@@ -426,13 +407,13 @@ void SmartBoiler::handle_incoming(const uint8_t *data, uint16_t length)
 		{
 			// format: weekday.time
 			// weekday is 0-6
-			publish(root_topic_ + "time", arg.substr(2));
+			ESP_LOGI(TAG, "Time: %s", arg.c_str());
 			break;
 		}
 
 		case SbcPacket::Name:
 		{
-			publish(root_topic_ + "name", arg, 0, true);
+			ESP_LOGI(TAG, "Name: %s", arg.c_str());
 			break;
 		}
 
@@ -445,25 +426,25 @@ void SmartBoiler::handle_incoming(const uint8_t *data, uint16_t length)
 				break;
 			}
 
-			publish(root_topic_ + "hdo_enabled", *onoffOpt ? "1" : "0", 0, true);
+			ESP_LOGI(TAG, "HDO: %s", *onoffOpt ? "1" : "0");
 			break;
 		}
 
 		case SbcPacket::LastHdoTime:
 		{
-			publish(root_topic_ + "last_hdo_time", arg.substr(2), 0, true);
+			ESP_LOGI(TAG, "Last HDO time: %s", arg.c_str());
 			break;
 		}
 
 		case SbcPacket::HdoInfo:
 		{
-			publish(root_topic_ + "hdo_info", arg, 0, true);
+			ESP_LOGI(TAG, "HDO info: %s", arg.c_str());
 			break;
 		}
 
 		case SbcPacket::Sensor1:
 		{
-			publish(root_topic_ + "sensor1", arg, 0, true);
+			ESP_LOGI(TAG, "Sensor 1: %s", arg.c_str());
 			if (temperature_sensor_1_sensor_)
 			{
 				auto sensor1 = parse_number<float>(arg);
@@ -475,8 +456,7 @@ void SmartBoiler::handle_incoming(const uint8_t *data, uint16_t length)
 
 		case SbcPacket::Sensor2:
 		{
-			publish(root_topic_ + "sensor2", arg, 0, true);
-
+			ESP_LOGI(TAG, "Sensor 2: %s", arg.c_str());
 			auto sensor2 = parse_number<float>(arg);
 			if (sensor2)
 			{
@@ -490,13 +470,13 @@ void SmartBoiler::handle_incoming(const uint8_t *data, uint16_t length)
 
 		case SbcPacket::Capacity:
 		{
-			publish(root_topic_ + "capacity", arg, 0, true);
+			ESP_LOGI(TAG, "Capacity: %s", arg.c_str());
 			break;
 		}
 
 		case SbcPacket::Model:
 		{
-			publish(root_topic_ + "model", arg, 0, true);
+			ESP_LOGI(TAG, "Model: %s", arg.c_str());
 			break;
 		}
 
@@ -509,13 +489,13 @@ void SmartBoiler::handle_incoming(const uint8_t *data, uint16_t length)
 				break;
 			}
 
+			bool hdo_low_tariff = !!*onoffOpt;
 			if (hdo_low_tariff_sensor_)
 			{
-				bool hdo_low_tariff = !!*onoffOpt;
 				hdo_low_tariff_sensor_->publish_state(hdo_low_tariff);
 			}
 
-			publish(root_topic_ + "hdo_low_tariff", *onoffOpt ? "1" : "0", 0, true);
+			ESP_LOGI(TAG, "HDO low tariff: %s", hdo_low_tariff ? "1" : "0");
 			break;
 		}
 
@@ -534,7 +514,7 @@ void SmartBoiler::handle_incoming(const uint8_t *data, uint16_t length)
 			if (thermostat_)
 				thermostat_->publish_action(is_stopped_, heat_on);
 
-			publish(root_topic_ + "heat_on", *onoffOpt ? "1" : "0", 0, true);
+			ESP_LOGI(TAG, "Heating on: %s", heat_on ? "1" : "0");
 			break;
 		}
 
