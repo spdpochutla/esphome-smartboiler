@@ -1,6 +1,8 @@
 #include "smartboiler.h"
 #include "esphome/core/application.h"
 
+#include <esp_gattc_api.h>
+
 static const char *const TAG = "smartboiler";
 
 namespace esphome {
@@ -86,7 +88,7 @@ void SmartBoiler::dump_config()
 
 void SmartBoiler::send_to_boiler(uint8_t* frame, size_t length)
 {
-	auto status = esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_,
+	auto status = esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->char_handle_,
 								length, frame, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
 
 	if (status)
@@ -224,7 +226,7 @@ void SmartBoiler::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t 
 				break;
 			}
 
-			auto status = esp_ble_gattc_register_for_notify(this->parent()->gattc_if, this->parent()->remote_bda, chr->handle);
+			auto status = esp_ble_gattc_register_for_notify(this->parent()->get_gattc_if(), this->parent()->get_remote_bda(), chr->handle);
 			if (status)
 			{
 				ESP_LOGW(TAG, "esp_ble_gattc_register_for_notify failed, status=%d", status);
