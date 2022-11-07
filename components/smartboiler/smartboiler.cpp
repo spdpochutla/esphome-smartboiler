@@ -32,7 +32,7 @@ namespace SbcPacket {
 		HdoLowTariff = 0x21,
 		HdoInfo = 0x22,
 		UidResponse = 0x33,
-		Capacity = 0x3a,
+		Capacity = 0x35,
 		Name = 0x50,
 
 		SetNormalTemperature = 0x0e,
