@@ -1,2 +1,4 @@
 moje.yaml
 __pycache__
+.esphome/
+.vscode/
